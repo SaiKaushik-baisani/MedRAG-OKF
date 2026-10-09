@@ -1,0 +1,10 @@
+# Required (the demo runs fully offline with just these)
+numpy
+scikit-learn
+pypdf
+requests
+python-dotenv
+
+# Optional but recommended: real semantic embeddings + cross-encoder re-ranker.
+# Uncomment, install, then run `python cli.py warmup` once while online so the models are cached.
+# sentence-transformers

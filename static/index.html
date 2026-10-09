@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MedRAG_OKF - Trust-Aware Medical RAG</title>
+<style>
+:root{
+  --bg:#f4f1ea; --panel:#fffdf8; --ink:#17302f; --muted:#5d716f; --line:#ddd6c8;
+  --teal:#0f766e; --teal-soft:#d9efe9; --amber:#b45309; --amber-soft:#fdecc8;
+  --red:#b42318; --red-soft:#fde4e0; --green:#15803d; --green-soft:#dcf3e3; --blue:#1d4ed8; --blue-soft:#e0e9fd;
+  --mark:#ffe58a; --shadow:0 1px 2px rgba(23,48,47,.06),0 6px 18px rgba(23,48,47,.06);
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]){--bg:#0e1b1a;--panel:#142625;--ink:#e5efec;--muted:#93aaa6;--line:#27403d;
+    --teal:#4fd1c0;--teal-soft:#14403b;--amber:#f6ad55;--amber-soft:#41301a;--red:#ff8a7a;--red-soft:#471f1b;
+    --green:#6ee7a0;--green-soft:#173a27;--blue:#93b4ff;--blue-soft:#1b2a52;--mark:#6b5a12;--shadow:0 1px 2px rgba(0,0,0,.3)}
+}
+:root[data-theme=dark]{--bg:#0e1b1a;--panel:#142625;--ink:#e5efec;--muted:#93aaa6;--line:#27403d;
+    --teal:#4fd1c0;--teal-soft:#14403b;--amber:#f6ad55;--amber-soft:#41301a;--red:#ff8a7a;--red-soft:#471f1b;
+    --green:#6ee7a0;--green-soft:#173a27;--blue:#93b4ff;--blue-soft:#1b2a52;--mark:#6b5a12;--shadow:0 1px 2px rgba(0,0,0,.3)}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+@media(max-width:860px){.app{grid-template-columns:1fr;height:auto}.side{border-right:0;border-bottom:1px solid var(--line)}}
+
+/* sidebar */
+.side{background:var(--panel);border-right:1px solid var(--line);padding:22px 18px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--teal);display:grid;place-items:center;color:#fff}
+.brand h1{font:700 21px var(--serif);margin:0;letter-spacing:.2px}
+.tag{color:var(--muted);font-size:12.5px;margin:2px 0 16px}
+.pipeline{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:18px}
+.pipeline span{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--teal-soft);color:var(--teal);font-weight:600}
+.pipeline i{font-style:normal;color:var(--muted);font-size:11px;align-self:center}
+.side h3{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:20px 0 8px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;padding:7px;border-radius:7px;cursor:pointer;font-weight:600;font-size:13px;color:var(--muted)}
+.seg button.on{background:var(--teal);color:#fff}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:13.5px}
+.row input[type=range]{width:120px;accent-color:var(--teal)}
+.switch{position:relative;width:38px;height:22px;flex:none}
+.switch input{display:none}
+.switch span{position:absolute;inset:0;background:var(--line);border-radius:99px;cursor:pointer;transition:.15s}
+.switch span:after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.15s}
+.switch input:checked+span{background:var(--teal)}
+.switch input:checked+span:after{left:19px}
+.chip{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);background:var(--bg);color:var(--muted)}
+.chip b{color:var(--ink);font-weight:600}
+.chip.ok{border-color:var(--green);color:var(--green);background:var(--green-soft)}
+.chip.warn{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+.doclist{max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.doc{display:flex;justify-content:space-between;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12.5px}
+.doc:last-child{border:0}
+.doc small{color:var(--muted)}
+.doc button{border:0;background:none;color:var(--red);cursor:pointer;font-size:12px}
+.upload{display:block;margin-top:10px;border:1.5px dashed var(--line);border-radius:10px;padding:10px;text-align:center;font-size:12.5px;color:var(--muted);cursor:pointer}
+.upload:hover{border-color:var(--teal);color:var(--teal)}
+.note{font-size:11.5px;color:var(--muted);margin-top:16px;line-height:1.45}
+
+/* main */
+.main{display:flex;flex-direction:column;min-width:0;height:100vh}
+@media(max-width:860px){.main{height:auto;min-height:80vh}}
+.tabs{display:flex;gap:4px;padding:14px 24px 0;border-bottom:1px solid var(--line);background:var(--bg)}
+.tabs button{border:0;background:none;padding:9px 14px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--teal);border-color:var(--teal)}
+.tabs .sp{flex:1}
+.view{display:none;flex:1;min-height:0}
+.view.on{display:flex;flex-direction:column}
+.scroll{flex:1;overflow:auto;padding:22px 24px}
+.wrap{max-width:860px;margin:0 auto}
+.composer{border-top:1px solid var(--line);padding:14px 24px;background:var(--bg)}
+.composer form{max-width:860px;margin:0 auto;display:flex;gap:10px}
+.composer input{flex:1;padding:13px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);outline:none;font-size:15px}
+.composer input:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-soft)}
+.btn{border:0;background:var(--teal);color:#fff;padding:0 20px;border-radius:12px;font-weight:600;cursor:pointer;min-height:44px}
+.btn:disabled{opacity:.5;cursor:wait}
+.btn.ghost{background:transparent;color:var(--teal);border:1px solid var(--teal)}
+
+/* empty state */
+.hero{text-align:center;padding:40px 0 10px}
+.hero h2{font:700 30px var(--serif);margin:0 0 8px}
+.hero p{color:var(--muted);max-width:560px;margin:0 auto 22px}
+.ex{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.ex button{border:1px solid var(--line);background:var(--panel);padding:8px 13px;border-radius:99px;cursor:pointer;font-size:13.5px}
+.ex button:hover{border-color:var(--teal);color:var(--teal)}
+.ex .grp{width:100%;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:10px 0 0}
+
+/* messages */
+.msg{margin:0 0 20px}
+.user{display:flex;justify-content:flex-end}
+.user div{background:var(--teal);color:#fff;padding:10px 15px;border-radius:16px 16px 4px 16px;max-width:80%}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.card .hd{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.card .hd .name{font-weight:700;color:var(--ink)}
+.card .bd{padding:16px 18px}
+.answer{font:17px/1.65 var(--serif);white-space:pre-wrap}
+.cite{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 4px;margin:0 1px;border-radius:5px;background:var(--teal-soft);color:var(--teal);font:700 11px var(--sans);cursor:pointer;vertical-align:2px;border:0}
+.cite:hover{background:var(--teal);color:#fff}
+.banner{padding:12px 16px;display:flex;gap:10px;font-size:14px;line-height:1.45}
+.banner b{display:block}
+.banner.emergency{background:var(--red-soft);color:var(--red);border-bottom:1px solid var(--red)}
+.banner.caution{background:var(--amber-soft);color:var(--amber);border-bottom:1px solid var(--amber)}
+.banner.info{background:var(--blue-soft);color:var(--blue)}
+.banner.insuff{background:var(--amber-soft);color:var(--amber)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:16px}
+.metric{border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--bg)}
+.metric small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.metric strong{font-size:18px}
+.metric .bar{height:5px;border-radius:9px;background:var(--line);margin-top:6px;overflow:hidden}
+.metric .bar i{display:block;height:100%;border-radius:9px}
+.good{color:var(--green)}.mid{color:var(--amber)}.bad{color:var(--red)}
+.removed{margin-top:12px;font-size:13px;color:var(--amber);background:var(--amber-soft);border-radius:10px;padding:9px 12px}
+.removed s{opacity:.8}
+.clarify ul{margin:8px 0 0;padding-left:20px}
+.clarify li{margin:4px 0}
+details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--teal);list-style:none}
+summary::-webkit-details-marker{display:none}
+summary:before{content:"▸ ";transition:.1s}
+details[open]>summary:before{content:"▾ "}
+.src{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;background:var(--bg)}
+.src.flash{animation:flash 1.2s}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--teal)}100%{box-shadow:0 0 0 0 transparent}}
+.src .t{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
+.src .t b{font-weight:700}
+.src .m{font:11.5px var(--mono);color:var(--muted)}
+.src p{margin:6px 0 0;font-size:13.5px;color:var(--ink);opacity:.9}
+.src .origin{font-size:11.5px;color:var(--muted);margin-top:4px}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
+.trace{display:flex;flex-direction:column;gap:0;margin-top:8px}
+.step{display:grid;grid-template-columns:20px 1fr auto;gap:10px;font-size:13px;padding:5px 0;position:relative}
+.step:before{content:"";width:9px;height:9px;border-radius:50%;background:var(--teal);margin-top:6px;justify-self:center}
+.step small{color:var(--muted)}
+.step em{font:11.5px var(--mono);color:var(--muted);font-style:normal}
+.dots{display:inline-flex;gap:4px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:b 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+/* compare */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+@media(max-width:1100px){.cmp{grid-template-columns:1fr}}
+.cmp .card .hd{background:var(--bg)}
+.vs{font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px}
+.vs.base{background:var(--amber-soft);color:var(--amber)}
+.vs.med{background:var(--teal-soft);color:var(--teal)}
+
+/* eval */
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+td.win{color:var(--green)}
+.bars{display:flex;flex-direction:column;gap:3px;min-width:130px}
+.bars div{height:7px;border-radius:5px}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin:8px 0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0 20px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi small{color:var(--muted);font-size:12px}
+.kpi strong{display:block;font:700 24px var(--serif)}
+.kpi span{font-size:12.5px;color:var(--muted)}
+.pill{padding:2px 8px;border-radius:99px;font-size:11.5px;font-weight:600}
+.pill.ok{background:var(--green-soft);color:var(--green)}.pill.no{background:var(--red-soft);color:var(--red)}.pill.na{background:var(--bg);color:var(--muted)}
+.h2{font:700 22px var(--serif);margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+.arch{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0}
+.arch div{padding:9px 13px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-weight:600;font-size:13px}
+.arch div small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.arch i{color:var(--muted);font-style:normal}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13.5px;z-index:9;display:none}
+
+/* OKF */
+.badge{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;letter-spacing:.02em;margin-left:4px;vertical-align:1px;background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.badge.type{background:var(--blue-soft);color:var(--blue);border-color:transparent}
+.badge.draft{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+.badge.ok{background:var(--green-soft);color:var(--green);border-color:transparent}
+.badge.bad{background:var(--red-soft);color:var(--red);border-color:transparent}
+.badge.link{background:var(--teal-soft);color:var(--teal);border-color:transparent}
+.trustnote{margin-top:12px;font-size:13px;background:var(--blue-soft);color:var(--blue);border-radius:10px;padding:9px 12px}
+.related{margin-top:12px;font-size:13px;color:var(--muted)}
+.related button{border:1px solid var(--line);background:var(--bg);border-radius:99px;padding:3px 10px;margin:3px 4px 0 0;cursor:pointer;font-size:12.5px;color:var(--teal)}
+.related button:hover{border-color:var(--teal)}
+.kgrid{display:grid;grid-template-columns:minmax(380px,1.1fr) minmax(320px,1fr);gap:18px;margin-top:14px}
+@media(max-width:1200px){.kgrid{grid-template-columns:1fr}}
+.kstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}
+.kstat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+.kstat strong{display:block;font:700 22px var(--serif)}.kstat small{color:var(--muted);font-size:11.5px}
+#graph{width:100%;height:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+#graph .edge{stroke:var(--line);stroke-width:1.2;fill:none;transition:.12s}
+#graph .edge.on{stroke:var(--teal);stroke-width:2}
+#graph .node{cursor:pointer}
+#graph .node circle{stroke:var(--panel);stroke-width:2;transition:.12s}
+#graph .node.sel circle{stroke:var(--ink);stroke-width:3}
+#graph .node.used circle{stroke:var(--teal);stroke-width:4}
+#graph .node text{font:11px var(--sans);fill:var(--ink)}
+#graph .node.dim{opacity:.25}
+.ktable{width:100%;font-size:13px}.ktable td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}.ktable td:first-child{color:var(--muted);width:120px;font-weight:600}
+.cbody h4{margin:14px 0 4px;font:700 15px var(--serif)}.cbody p{margin:4px 0;font-size:13.5px}.cbody ul{margin:4px 0;padding-left:20px;font-size:13.5px}
+.cbody a,.clink{color:var(--teal);cursor:pointer;text-decoration:underline;background:none;border:0;padding:0;font:inherit}
+pre.raw{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;font:12px/1.5 var(--mono);overflow:auto;max-height:260px;white-space:pre-wrap}
+.legend2{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin:8px 0}.legend2 i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.issue{display:flex;gap:8px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+.vform{display:flex;gap:8px;margin-top:10px}.vform input{flex:1;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--panel)}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+      <h1>MedRAG_OKF</h1>
+    </div>
+    <div class="tag">Trust-aware medical RAG chatbot</div>
+    <div class="pipeline"><span>Retrieve</span><i>›</i><span>Rank</span><i>›</i><span>Generate</span><i>›</i><span>Verify</span><i>›</i><span>Explain</span><i>›</i><span>Safety</span></div>
+
+    <h3>Pipeline</h3>
+    <div class="seg" id="modeSeg"><button data-m="medrag_okf" class="on">MedRAG_OKF</button><button data-m="baseline">Baseline RAG</button></div>
+    <div class="row"><span>Passages (top-k)</span><span><input type="range" id="topk" min="2" max="8" value="4"> <b id="topkv">4</b></span></div>
+    <div class="row" title="Also consider the best passage of concepts linked (OKF links) to the top concept"><span>OKF graph expansion</span><label class="switch"><input type="checkbox" id="useGraph"><span></span></label></div>
+    <div class="row"><span>Use LLM (if configured)</span><label class="switch"><input type="checkbox" id="useLLM" checked><span></span></label></div>
+
+    <h3>System</h3>
+    <div id="sys" style="display:flex;flex-direction:column;gap:6px"></div>
+
+    <h3>Knowledge base <span id="kbcount"></span></h3>
+    <div class="doclist" id="docs"></div>
+    <label class="upload" id="uploadBox">+ Add PDF / TXT / MD document<input type="file" id="file" accept=".pdf,.txt,.md" hidden></label>
+
+    <div class="note">MedRAG_OKF is an assistive information system, not a replacement for a medical professional. For emergencies call 112.</div>
+  </aside>
+
+  <main class="main">
+    <nav class="tabs">
+      <button data-v="chat" class="on">Chat</button>
+      <button data-v="compare">Baseline vs MedRAG_OKF</button>
+      <button data-v="knowledge">Knowledge (OKF)</button>
+      <button data-v="eval">Evaluation</button>
+      <button data-v="about">Architecture</button>
+      <span class="sp"></span>
+      <button id="theme" title="Toggle theme">◐</button>
+    </nav>
+
+    <!-- CHAT -->
+    <section class="view on" id="v-chat">
+      <div class="scroll" id="chatScroll"><div class="wrap" id="chat"></div></div>
+      <div class="composer"><form id="form"><input id="q" placeholder="Ask a medical question, e.g. What causes persistent fatigue?" autocomplete="off"><button class="btn" id="send">Ask</button></form></div>
+    </section>
+
+    <!-- COMPARE -->
+    <section class="view" id="v-compare">
+      <div class="scroll"><div class="wrap" style="max-width:1200px">
+        <h2 class="h2">Same question, two pipelines</h2>
+        <p class="sub">The baseline is a plain RAG (dense top-k, then generate). MedRAG_OKF adds hybrid retrieval, re-ranking, an evidence gate, claim verification and the safety layer.</p>
+        <form id="cmpForm" style="display:flex;gap:10px"><input id="cq" style="flex:1;padding:12px 15px;border-radius:12px;border:1px solid var(--line);background:var(--panel)" placeholder="Try: What is the best treatment for kidney stones?"><button class="btn" id="cmpBtn">Compare</button></form>
+        <div class="ex" id="cmpEx" style="justify-content:flex-start;margin-top:12px"></div>
+        <div class="cmp" id="cmpOut"></div>
+      </div></div>
+    </section>
+
+    <!-- EVAL -->
+    <section class="view" id="v-knowledge">
+      <div class="scroll"><div class="wrap" style="max-width:1250px">
+        <h2 class="h2">Knowledge base: Open Knowledge Format bundle</h2>
+        <p class="sub">Each concept is one markdown file; the path is its identity, frontmatter carries its type and trust signals, and ordinary links form the graph.</p>
+        <div class="kstats" id="kstats"></div>
+        <div class="kgrid">
+          <div><svg id="graph" viewBox="0 0 800 600" role="img" aria-label="OKF concept graph"></svg><div class="legend2" id="glegend"></div>
+            <details open><summary>Validation (OKF conformance + trust checks)</summary><div id="kissues"></div></details>
+            <details><summary>Bundle structure</summary><div id="ktree"></div></details>
+            <details><summary>log.md</summary><pre class="raw" id="klog"></pre></details></div>
+          <div><div class="card"><div class="bd" id="concept"><span style="color:var(--muted)">Click a concept in the graph to inspect its frontmatter, trust signals and links.</span></div></div></div>
+        </div>
+      </div></div>
+    </section>
+
+    <section class="view" id="v-eval">
+      <div class="scroll"><div class="wrap" style="max-width:1000px">
+        <h2 class="h2">Evaluation dashboard</h2>
+        <p class="sub" id="evalSub">Baseline RAG vs Trust-Aware MedRAG_OKF on the built-in medical test set.</p>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+          <button class="btn" id="runEval">Run evaluation</button>
+          <label class="row" style="margin:0;gap:8px"><label class="switch"><input type="checkbox" id="evalLLM"><span></span></label><span style="color:var(--muted);font-size:13px">use LLM generator (slower)</span></label>
+          <span id="evalMsg" style="color:var(--muted);font-size:13px"></span>
+        </div>
+        <div id="evalOut"></div>
+      </div></div>
+    </section>
+
+    <!-- ABOUT -->
+    <section class="view" id="v-about">
+      <div class="scroll"><div class="wrap">
+        <h2 class="h2">How MedRAG_OKF works</h2>
+        <p class="sub">My novelty is not RAG. It is making the RAG pipeline trust-aware.</p>
+        <div class="arch">
+          <div>User query</div><i>→</i><div>Safety / triage<small>red-flag patterns</small></div><i>→</i><div>Query analysis<small>clarify if vague</small></div><i>→</i><div>Hybrid retrieval<small>BM25 + dense (RRF)</small></div><i>→</i><div>Re-ranking</div><i>→</i><div>Evidence gate<small>insufficient? say so</small></div><i>→</i><div>LLM generation</div><i>→</i><div>Claim verification</div><i>→</i><div>Safe answer<small>sources + evidence status</small></div>
+        </div>
+        <div class="card"><div class="bd" style="font-size:14.5px">
+          <p><b>A. Hybrid retrieval + re-ranking.</b> Keyword (BM25 with clinical synonym expansion) and semantic search are fused with Reciprocal Rank Fusion, then re-ranked so the strongest evidence reaches the generator first.</p>
+          <p><b>B. Evidence verification.</b> Every sentence of the generated answer is checked against the retrieved passages (key terms and any numbers must appear in a passage). Unsupported statements are removed; if too many fail, the system refuses to answer.</p>
+          <p><b>C. Explainable output.</b> Each answer carries clickable citations, the source document and section, the passage text, scores and a per-stage pipeline trace.</p>
+          <p><b>D. Query clarification.</b> Vague questions such as "pain" trigger focused follow-up questions before any retrieval happens.</p>
+          <p><b>E. Safety / triage layer.</b> Pre-defined high-risk patterns (chest pain, stroke signs, breathing difficulty, self-harm, overdose...) short-circuit to emergency guidance. Dosing and diagnosis requests get a caution banner.</p>
+          <p><b>G. Open Knowledge Format (OKF).</b> The knowledge base is an OKF bundle: one markdown concept per file with YAML frontmatter (type, tags, sources, generated, verified, status, stale_after) and ordinary links between concepts. Those trust fields travel with every cited passage, so each answer shows whether its sources are human-verified, still draft, or past their review date, and the link graph suggests related concepts.</p>
+          <p><b>F. Evidence score.</b> A 0-1 confidence that the knowledge base really covers the question. Below the threshold the bot says it has insufficient evidence instead of guessing.</p>
+        </div></div>
+      </div></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let mode = 'medrag_okf', pending = null, STATUS = null, busy = false;
+const EXAMPLES = {
+  "Answerable": ["What causes persistent fatigue?", "What HbA1c level indicates diabetes?", "When should I get emergency help during an asthma attack?", "Which painkillers should be avoided in dengue?"],
+  "Trust layer": ["What is the best treatment for kidney stones?", "pain", "How many paracetamol tablets can I take at once?"],
+  "Safety": ["I have crushing chest pain spreading to my left arm"]
+};
+
+function toast(msg){const t=$('#toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',3200)}
+async function api(path, body){
+  const r = await fetch(path, body ? {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)} : {});
+  const j = await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j;
+}
+
+/* ---------- sidebar ---------- */
+function renderStatus(s){
+  STATUS = s;
+  $('#sys').innerHTML = `
+    <span class="chip">Retriever <b>${esc(s.embedder.replace(' (offline fallback)',''))}</b></span>
+    <span class="chip">Re-ranker <b>${esc(s.reranker.split(' (')[0])}</b></span>
+    <span class="chip ${s.llm_enabled?'ok':'warn'}">Generator <b>${s.llm_enabled?esc(s.llm_model):'offline extractive'}</b></span>
+    <span class="chip">Verifier <b>${esc(s.verifier)}</b> · evidence ≥ <b>${s.min_evidence_score}</b></span>`;
+  $('#kbcount').textContent = `(${s.documents.length} concepts, ${s.chunks} passages)`;
+  if (s.okf) $('#sys').insertAdjacentHTML('beforeend', `<span class="chip">OKF <b>${s.okf.concepts}</b> concepts · <b>${s.okf.links}</b> links · <b>${s.okf.verified}</b> verified</span>`);
+  $('#docs').innerHTML = s.documents.map(d => `<div class="doc"><div>${esc(d.title)}<br><small>${esc(d.type||'')} · ${d.chunks} passages${d.uploaded?' · uploaded':''}</small>${trustBadges(d)}</div>${d.uploaded?`<button data-del="${esc(d.doc_id)}">remove</button>`:''}</div>`).join('');
+  $$('#docs [data-del]').forEach(b => b.onclick = async () => { renderStatus(await api('/api/delete_upload',{doc_id:b.dataset.del})); toast('Document removed'); });
+}
+$('#file').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  toast('Indexing ' + f.name + ' ...');
+  const buf = new Uint8Array(await f.arrayBuffer()); let bin=''; buf.forEach(b=>bin+=String.fromCharCode(b));
+  try { renderStatus(await api('/api/upload',{filename:f.name,content_b64:btoa(bin)})); toast('Added ' + f.name); }
+  catch(err){ toast(err.message) }
+  e.target.value='';
+};
+$$('#modeSeg button').forEach(b => b.onclick = () => { mode=b.dataset.m; $$('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b)); toast(mode==='medrag_okf'?'MedRAG_OKF: trust layer ON':'Baseline RAG: trust layer OFF'); });
+$('#topk').oninput = e => $('#topkv').textContent = e.target.value;
+$$('.tabs [data-v]').forEach(b => b.onclick = () => { $$('.tabs [data-v]').forEach(x=>x.classList.toggle('on',x===b)); $$('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+b.dataset.v)); if(b.dataset.v==='eval') loadEval(); if(b.dataset.v==='knowledge') loadKnowledge(); });
+$('#theme').onclick = () => { const r=document.documentElement; const dark = (r.dataset.theme==='dark') || (!r.dataset.theme && matchMedia('(prefers-color-scheme:dark)').matches); r.dataset.theme = dark?'light':'dark'; };
+
+/* ---------- result rendering ---------- */
+function terms(q){ return [...new Set((q.toLowerCase().match(/[a-z]{4,}/g)||[]))].filter(t=>!['what','with','that','this','from','have','does','should','which','when','your','about','there','their'].includes(t)); }
+function hl(text, q){
+  let h = esc(text);
+  terms(q).forEach(t => { h = h.replace(new RegExp('\\b('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'[a-z]*)','gi'), '<mark>$1</mark>'); });
+  return h;
+}
+function answerHtml(a, id){ return esc(a).replace(/\[(\d+)\]/g, (m,n)=>`<button class="cite" data-src="${id}-${n}">${n}</button>`); }
+const cls = (v, hi, mid) => v>=hi?'good':v>=mid?'mid':'bad';
+function metric(label, val, text, pct, c){
+  return `<div class="metric"><small>${label}</small><strong class="${c}">${text}</strong><div class="bar"><i style="width:${Math.round(pct*100)}%;background:var(--${c==='good'?'green':c==='mid'?'amber':'red'})"></i></div></div>`;
+}
+function trustBadges(x){
+  let b = '';
+  const ty = x.type || x.concept_type; if (ty) b += `<span class="badge type">${esc(ty)}</span>`;
+  b += x.verified ? `<span class="badge ok">human-verified</span>` : `<span class="badge draft">${esc(x.status||'draft')} · unverified</span>`;
+  if (x.stale) b += `<span class="badge bad">stale</span>`;
+  return b;
+}
+let uid = 0, lastUsed = [];
+function renderResult(r, label){
+  const id = 'r'+(++uid);
+  let h = `<div class="card">`;
+  const head = label ? `<div class="hd"><span class="name">${label}</span></div>` : '';
+  h += head;
+  if (r.status==='emergency') h += `<div class="banner emergency"><span style="font-size:20px">⚠</span><div><b>Possible emergency: ${esc(r.safety_category)}</b>${esc(r.safety_message)}</div></div>`;
+  else if (r.safety_level==='caution') h += `<div class="banner caution"><span style="font-size:18px">ⓘ</span><div><b>${esc(r.safety_category)}</b>${esc(r.safety_message)}</div></div>`;
+  if (r.status==='insufficient_evidence') h += `<div class="banner insuff"><span style="font-size:18px">∅</span><div><b>Insufficient evidence</b>The knowledge base does not support a safe answer, so MedRAG_OKF declines instead of guessing.</div></div>`;
+  h += r.status==='emergency' ? `<div class="bd" style="padding:10px 18px">` : `<div class="bd">`;
+  if (r.status==='clarification') {
+    h += `<div class="clarify"><div class="answer" style="font-size:16px">${esc(r.answer)}</div><ul>${r.clarifying_questions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul><div style="color:var(--muted);font-size:13px;margin-top:8px">Reply below with those details and I will search the evidence.</div></div>`;
+  } else {
+    if (r.status!=='emergency') h += `<div class="answer">${answerHtml(r.answer, id)}</div>`;
+  }
+  if (r.removed_claims && r.removed_claims.length) h += `<div class="removed"><b>Safer path:</b> removed ${r.removed_claims.length} statement(s) not supported by the evidence:<br>${r.removed_claims.map(c=>`<s>${esc(c)}</s>`).join('<br>')}</div>`;
+  if (r.mode==='medrag_okf' && !['emergency','clarification'].includes(r.status)) {
+    let m = '';
+    if (r.evidence_score!=null) m += metric('Evidence score', r.evidence_score, `${r.evidence_label} · ${r.evidence_score.toFixed(2)}`, r.evidence_score, cls(r.evidence_score,.7,.45));
+    if (r.supported_rate!=null) { const n=r.claims.filter(c=>c.supported).length; m += metric('Claims supported', r.supported_rate, `${n}/${r.claims.length} · ${Math.round(r.supported_rate*100)}%`, r.supported_rate, cls(r.supported_rate,.9,.5)); }
+    if (r.provenance && r.provenance.total) { const v=r.provenance.verified, t=r.provenance.total; m += metric('Knowledge verified', v/t, `${v}/${t} concepts`, v/t, v===t?'good':v>0?'mid':'bad'); }
+    m += `<div class="metric"><small>Latency</small><strong>${Math.round(r.latency_ms)} ms</strong><div style="font-size:11.5px;color:var(--muted)">${esc(r.generator||'')}</div></div>`;
+    h += `<div class="metrics">${m}</div>`;
+    if (r.provenance && r.provenance.notes && r.provenance.notes.length) h += `<div class="trustnote"><b>Knowledge trust (OKF):</b> ${r.provenance.notes.map(esc).join(' ')}</div>`;
+    if (r.related && r.related.length) h += `<div class="related">Related concepts (OKF links): ${r.related.map(x=>`<button data-ask="${esc(x.title)}" title="linked from ${esc(x.via)}">${esc(x.title)}</button>`).join('')}</div>`;
+    if (r.provenance && r.provenance.concepts) lastUsed = r.provenance.concepts.map(c=>c.path);
+  } else if (r.mode==='baseline') {
+    h += `<div class="metrics"><div class="metric"><small>Evidence check</small><strong class="bad">none</strong><div style="font-size:11.5px;color:var(--muted)">answer is not verified</div></div><div class="metric"><small>Latency</small><strong>${Math.round(r.latency_ms)} ms</strong><div style="font-size:11.5px;color:var(--muted)">${esc(r.generator||'')}</div></div></div>`;
+  }
+  if (r.sources && r.sources.length) {
+    h += `<details><summary>Sources (${r.sources.length})</summary>` + r.sources.map(s => `
+      <div class="src" id="${id}-${s.rank}"><div class="t"><span><b>[${s.rank}] ${esc(s.title)}</b> · ${esc(s.section)}${s.page?` · p.${s.page}`:''}${trustBadges(s)}${s.via_graph?'<span class="badge link">via OKF link</span>':''}</span><span class="m">score ${s.score.toFixed(2)} · cos ${s.dense.toFixed(2)} · bm25 ${s.bm25.toFixed(1)}</span></div>
+      <p>${hl(s.text, r.question)}</p><div class="origin">${esc(s.doc_id)}.md · ${esc(s.source)} · <button class="clink" data-concept="${esc(s.doc_id)}">open concept</button></div></div>`).join('') + `</details>`;
+  }
+  if (r.claims && r.claims.length) {
+    h += `<details><summary>Claim-by-claim verification (${esc(r.verifier)})</summary>` + r.claims.map(c => `<div class="src"><div class="t"><span>${esc(c.claim)}</span><span><span class="pill ${c.supported?'ok':'no'}">${c.supported?'supported'+(c.source_rank?' by ['+c.source_rank+']':''):'unsupported'}</span> <span class="m">${c.score.toFixed(2)}</span></span></div>${c.reason?`<div class="origin">${esc(c.reason)}</div>`:''}</div>`).join('') + `</details>`;
+  }
+  if (r.trace && r.trace.length) {
+    h += `<details><summary>Pipeline trace</summary><div class="trace">` + r.trace.map(t=>`<div class="step"><span></span><div><b>${esc(t.stage)}</b><br><small>${esc(t.detail)}</small></div><em>${t.ms} ms</em></div>`).join('') + `</div></details>`;
+  }
+  h += `</div></div>`;
+  return h;
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest('.cite'); if(!c) return;
+  const el = document.getElementById(c.dataset.src); if(!el) return;
+  const d = el.closest('details'); if(d) d.open = true;
+  el.scrollIntoView({behavior:'smooth',block:'center'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+});
+
+/* ---------- chat ---------- */
+function showHero(){
+  $('#chat').innerHTML = `<div class="hero"><h2>Ask for evidence, not just an answer.</h2><p>Every reply shows its sources, an evidence score and a claim-by-claim check. When the evidence isn't there, MedRAG_OKF says so.</p><div class="ex">` +
+    Object.entries(EXAMPLES).map(([g,qs]) => `<div class="grp">${g}</div>` + qs.map(q=>`<button data-q="${esc(q)}">${esc(q)}</button>`).join('')).join('') + `</div></div>`;
+}
+function bindExamples(root, fn){ root.querySelectorAll('[data-q]').forEach(b => b.onclick = () => fn(b.dataset.q)); }
+async function ask(text){
+  if (busy || !text.trim()) return;
+  busy = true; $('#send').disabled = true;
+  const chat = $('#chat'); if (chat.querySelector('.hero')) chat.innerHTML = '';
+  let q = text.trim(), skip = false, shown = q;
+  if (pending) { q = pending + '. ' + q; skip = true; pending = null; }
+  chat.insertAdjacentHTML('beforeend', `<div class="msg user"><div>${esc(shown)}</div></div>`);
+  const holder = document.createElement('div'); holder.className = 'msg'; holder.innerHTML = `<div class="card"><div class="bd"><span class="dots"><i></i><i></i><i></i></span></div></div>`;
+  chat.appendChild(holder); scrollDown();
+  try {
+    const r = await api('/api/ask', {question:q, mode, top_k:+$('#topk').value, use_llm:$('#useLLM').checked, skip_clarification:skip, graph_expand:$('#useGraph').checked});
+    if (r.status==='clarification') pending = q;
+    holder.innerHTML = renderResult(r);
+  } catch(err){ holder.innerHTML = `<div class="card"><div class="banner emergency">Error: ${esc(err.message)}</div></div>`; }
+  busy = false; $('#send').disabled = false; scrollDown(); $('#q').focus();
+}
+function scrollDown(){ const s=$('#chatScroll'); s.scrollTop = s.scrollHeight; }
+$('#form').onsubmit = e => { e.preventDefault(); const v=$('#q').value; $('#q').value=''; ask(v); };
+
+/* ---------- compare ---------- */
+async function compare(q){
+  if(!q.trim()) return; $('#cq').value=q; $('#cmpBtn').disabled=true;
+  $('#cmpOut').innerHTML = `<div class="card"><div class="bd"><span class="dots"><i></i><i></i><i></i></span></div></div><div class="card"><div class="bd"><span class="dots"><i></i><i></i><i></i></span></div></div>`;
+  try {
+    const r = await api('/api/compare',{question:q,top_k:+$('#topk').value,use_llm:$('#useLLM').checked,graph_expand:$('#useGraph').checked});
+    $('#cmpOut').innerHTML = `<div>${renderResult(r.baseline,'<span class="vs base">BASELINE RAG</span> &nbsp;dense top-k → generate')}</div><div>${renderResult(r.medrag_okf,'<span class="vs med">MEDRAG_OKF</span> &nbsp;trust-aware pipeline')}</div>`;
+  } catch(err){ $('#cmpOut').innerHTML = `<div class="card"><div class="banner emergency">${esc(err.message)}</div></div>`; }
+  $('#cmpBtn').disabled=false;
+}
+$('#cmpForm').onsubmit = e => { e.preventDefault(); compare($('#cq').value); };
+$('#cmpEx').innerHTML = ["What is the best treatment for kidney stones?","What causes persistent fatigue?","I have crushing chest pain spreading to my left arm","pain","What are the side effects of the COVID-19 booster?"].map(q=>`<button data-q="${esc(q)}">${esc(q)}</button>`).join('');
+bindExamples($('#cmpEx'), compare);
+
+/* ---------- evaluation ---------- */
+const ROWS = [
+  ['Retrieval','Precision@k','precision',1],['Retrieval','Doc recall@k','recall',1],['Retrieval','MRR','mrr',1],
+  ['Answer quality','Key-fact coverage','fact_coverage',1],['Grounding','Supported-claim rate','grounding',1],
+  ['Safety','Unsupported answers on out-of-scope Qs (lower is better)','unsupported_answer',-1],
+  ['Safety','Red-flag queries escalated','red_flag_handled',1],['Safety','Ambiguous queries clarified','clarified',1],['Safety','Dosing / diagnosis requests flagged','caution_flagged',1],
+  ['Efficiency','Mean latency, ms (lower is better)','latency',-1]
+];
+let evalTimer=null;
+async function loadEval(){
+  const j = await api('/api/eval');
+  if (j.running) { $('#evalMsg').textContent='running ...'; $('#runEval').disabled=true; clearTimeout(evalTimer); evalTimer=setTimeout(loadEval,1500); return; }
+  $('#runEval').disabled=false; $('#evalMsg').textContent = j.error?('Error: '+j.error):'';
+  if (!j.results) { $('#evalOut').innerHTML = `<div class="card"><div class="bd">No results yet. Click <b>Run evaluation</b>.</div></div>`; return; }
+  renderEval(j.results);
+}
+function renderEval(r){
+  const b=r.summary.baseline, m=r.summary.medrag_okf, c=r.counts;
+  const f = (k,v)=> v==null?'-':(k==='latency'?v.toFixed(1):v.toFixed(2));
+  $('#evalSub').textContent = `Test set: ${c.answerable} answerable, ${c.red_flag} red-flag, ${c.caution} dosing/diagnosis, ${c.out_of_scope} out-of-scope, ${c.ambiguous} ambiguous questions · k=${r.k} · generator: ${r.generator}`;
+  const kpi = (t,v,s)=>`<div class="kpi"><small>${t}</small><strong>${v}</strong><span>${s}</span></div>`;
+  let h = `<div class="kpis">`
+    + kpi('Retrieval precision@'+r.k, `${(m.precision*100).toFixed(0)}%`, `baseline ${(b.precision*100).toFixed(0)}%`)
+    + kpi('Unsupported answers (out-of-scope)', `${(m.unsupported_answer*100).toFixed(0)}%`, `baseline ${(b.unsupported_answer*100).toFixed(0)}%`)
+    + kpi('Red-flag escalation', `${(m.red_flag_handled*100).toFixed(0)}%`, `baseline ${(b.red_flag_handled*100).toFixed(0)}%`)
+    + kpi('Latency overhead', `+${(m.latency-b.latency).toFixed(1)} ms`, `${b.latency.toFixed(1)} → ${m.latency.toFixed(1)} ms`) + `</div>`;
+  h += `<div class="legend"><span><i style="background:var(--amber)"></i>Baseline RAG</span><span><i style="background:var(--teal)"></i>MedRAG_OKF</span><span style="margin-left:auto">retriever: ${esc(r.retriever)}</span></div>`;
+  h += `<div class="card"><table><thead><tr><th>Dimension</th><th>Metric</th><th style="text-align:right">Baseline</th><th style="text-align:right">MedRAG_OKF</th><th></th></tr></thead><tbody>`;
+  ROWS.forEach(([dim,label,key,dir]) => {
+    const bv=b[key], mv=m[key]; if (bv==null && mv==null) return;
+    const better = dir>0 ? mv>bv : mv<bv; const mx = key==='latency'?Math.max(bv,mv,1):1;
+    h += `<tr><td>${dim}</td><td>${label}</td><td class="num">${f(key,bv)}</td><td class="num ${better?'win':''}">${f(key,mv)}</td><td><div class="bars"><div style="width:${(bv/mx*100)||0}%;background:var(--amber)"></div><div style="width:${(mv/mx*100)||0}%;background:var(--teal)"></div></div></td></tr>`;
+  });
+  h += `</tbody></table></div>`;
+  const rows = r.details.filter(d=>d.system==='medrag_okf');
+  h += `<details open><summary>Per-question results (MedRAG_OKF)</summary><div class="card" style="margin-top:8px"><table><thead><tr><th>ID</th><th>Type</th><th>Question</th><th>Outcome</th><th></th></tr></thead><tbody>` +
+    rows.map(d => { const ok = d.type==='answerable' ? (d.status!=='insufficient_evidence' && d.fact_coverage>=0.5) : d.correct;
+      return `<tr><td>${d.id}</td><td>${d.type.replace('_',' ')}</td><td>${esc(d.q)}</td><td>${esc(d.status.replace('_',' '))}</td><td><span class="pill ${ok?'ok':'no'}">${ok?'pass':'miss'}</span></td></tr>`; }).join('') + `</tbody></table></div></details>`;
+  h += `<p class="sub" style="margin-top:14px">Note: small custom test set (${Object.values(c).reduce((a,x)=>a+x,0)} questions) used for development. Grounding is measured with the same claim verifier for both pipelines; RAGAS and a larger expert-reviewed set are planned for the final evaluation.</p>`;
+  $('#evalOut').innerHTML = h;
+}
+$('#runEval').onclick = async () => { await api('/api/eval/run',{use_llm:$('#evalLLM').checked}); $('#runEval').disabled=true; $('#evalMsg').textContent='running ...'; evalTimer=setTimeout(loadEval,1200); };
+
+/* ---------- knowledge (OKF) ---------- */
+const TYPE_COLORS = ['var(--teal)','var(--blue)','var(--amber)','var(--red)','#8b5cf6','#db2777','var(--green)'];
+let KB = null, selected = null;
+async function loadKnowledge(keep){
+  KB = await api('/api/okf');
+  const st = KB.stats, errs = KB.issues.filter(i=>i.level==='error').length;
+  $('#kstats').innerHTML = [['Concepts',st.concepts],['Links',st.links],['Types',Object.keys(st.types).length],['Human-verified',`${st.verified}/${st.concepts}`],['Draft',st.drafts],['Stale',st.stale],['Spec errors',errs]]
+    .map(([k,v])=>`<div class="kstat"><strong>${v}</strong><small>${k}</small></div>`).join('');
+  drawGraph();
+  $('#kissues').innerHTML = KB.issues.length ? KB.issues.map(i=>`<div class="issue"><span class="badge ${i.level==='error'?'bad':'draft'}">${i.level}</span><span><code>${esc(i.path||'bundle')}</code> ${esc(i.message)}</span></div>`).join('')
+    : `<div class="issue"><span class="badge ok">conformant</span><span>Every concept has a <code>type</code>, all links resolve, nothing is stale. Concepts are still <b>unverified drafts</b> until a human reviewer signs them off.</span></div>`;
+  const dirs = {}; KB.concepts.forEach(c => (dirs[c.dir||'.'] = dirs[c.dir||'.']||[]).push(c));
+  $('#ktree').innerHTML = `<pre class="raw">${esc(KB.root.split('/').slice(-2).join('/'))}/\n├─ index.md\n├─ log.md\n` + Object.entries(dirs).map(([d,cs],i,a)=>`${i===a.length-1?'└─':'├─'} ${esc(d)}/\n` + cs.map(c=>`${i===a.length-1?'   ':'│  '}  └ ${esc(c.path.split('/').pop())}.md  [${esc(c.type)}]`).join('\n')).join('\n') + `</pre>`;
+  $('#klog').textContent = KB.log || '(no log.md)';
+  if (selected || keep) selectConcept(selected || keep, false);
+}
+function drawGraph(){
+  const cs = KB.concepts, types = [...new Set(cs.map(c=>c.type))];
+  const color = t => TYPE_COLORS[types.indexOf(t) % TYPE_COLORS.length];
+  const order = [...cs].sort((a,b)=> types.indexOf(a.type)-types.indexOf(b.type) || a.title.localeCompare(b.title));
+  const cx=400, cy=300, R=190, pos={};
+  order.forEach((c,i)=>{ const a = -Math.PI/2 + 2*Math.PI*i/order.length; pos[c.path]={x:cx+R*Math.cos(a), y:cy+R*Math.sin(a), a}; });
+  const used = new Set(lastUsed);
+  let svg = '';
+  const seen = new Set();
+  cs.forEach(c => c.links.forEach(t => { if(!pos[t]) return; const k=[c.path,t].sort().join('|'); if(seen.has(k)) return; seen.add(k);
+    const p=pos[c.path], q=pos[t]; svg += `<path class="edge" data-a="${esc(c.path)}" data-b="${esc(t)}" d="M${p.x},${p.y} Q${cx},${cy} ${q.x},${q.y}"/>`; }));
+  order.forEach(c => { const p=pos[c.path], right = Math.cos(p.a) >= 0, lx = p.x + (right?12:-12);
+    const label = c.title.length>26 ? c.title.slice(0,25)+'…' : c.title;
+    svg += `<g class="node${used.has(c.path)?' used':''}" data-path="${esc(c.path)}"><circle cx="${p.x}" cy="${p.y}" r="${c.verified?9:7}" fill="${color(c.type)}"/>`
+        + (c.verified?`<text x="${p.x}" y="${p.y+3.5}" text-anchor="middle" style="fill:#fff;font-size:10px;font-weight:700">✓</text>`:'')
+        + `<text x="${lx}" y="${p.y+4}" text-anchor="${right?'start':'end'}">${esc(label)}</text><title>${esc(c.title)} (${esc(c.type)})</title></g>`; });
+  $('#graph').innerHTML = svg;
+  $('#glegend').innerHTML = types.map(t=>`<span><i style="background:${color(t)}"></i>${esc(t)}</span>`).join('') + (used.size?`<span><i style="background:transparent;border:3px solid var(--teal)"></i>used in last answer</span>`:'') + `<span>✓ = human-verified</span>`;
+  $$('#graph .node').forEach(n => { n.onclick = () => selectConcept(n.dataset.path, true);
+    n.onmouseenter = () => hoverNode(n.dataset.path, true); n.onmouseleave = () => hoverNode(n.dataset.path, false); });
+  if (selected) markSel();
+}
+function hoverNode(path, on){
+  const c = KB.concepts.find(x=>x.path===path); const nb = new Set([path, ...c.links, ...c.backlinks]);
+  $$('#graph .node').forEach(n => n.classList.toggle('dim', on && !nb.has(n.dataset.path)));
+  $$('#graph .edge').forEach(e => e.classList.toggle('on', on && (e.dataset.a===path || e.dataset.b===path)));
+}
+function markSel(){ $$('#graph .node').forEach(n => n.classList.toggle('sel', n.dataset.path===selected)); }
+function mdLite(body){
+  const lines = esc(body).split('\n'); let out='', list=false;
+  const inline = t => t.replace(/\[([^\]]+)\]\(([^)\s]+\.md)\)/g,(m,tx,href)=>`<a data-concept="${href.replace(/^\//,'').replace(/\.md$/,'')}">${tx}</a>`);
+  for (const ln of lines){
+    if (/^\s*[-*] /.test(ln)) { if(!list){out+='<ul>';list=true} out+=`<li>${inline(ln.replace(/^\s*[-*] /,''))}</li>`; continue; }
+    if (list){out+='</ul>';list=false}
+    if (/^#{1,3} /.test(ln)) out += `<h4>${ln.replace(/^#+ /,'')}</h4>`; else if (ln.trim()) out += `<p>${inline(ln)}</p>`;
+  }
+  return out + (list?'</ul>':'');
+}
+async function selectConcept(path, scroll){
+  selected = path;
+  if (!$('#v-knowledge').classList.contains('on')) $$('.tabs [data-v=knowledge]')[0].click();
+  if (!KB) await loadKnowledge();
+  markSel();
+  let c; try { c = await api('/api/okf/concept?path='+encodeURIComponent(path)); } catch(e){ $('#concept').innerHTML = esc(e.message); return; }
+  const row = (k,v)=>`<tr><td>${k}</td><td>${v}</td></tr>`;
+  const linkBtn = x => `<button class="clink" data-concept="${esc(x.path)}">${esc(x.title)}</button>`;
+  $('#concept').innerHTML = `<div style="font:700 20px var(--serif)">${esc(c.title)}</div><div style="margin:4px 0 8px">${trustBadges(c)}</div>
+    <div style="color:var(--muted);font-size:13.5px;margin-bottom:8px">${esc(c.description)}</div>
+    <table class="ktable">
+      ${row('Identity (path)', '<code>'+esc(c.path)+'.md</code>')}
+      ${row('Status', esc(c.status))}
+      ${row('Verified by', c.verified_by.length ? c.verified_by.map(esc).join(', ') : '<span class="badge draft">nobody yet</span>')}
+      ${row('Generated by', esc(c.generated_by||'-'))}
+      ${row('Stale after', esc(c.stale_after||'-') + (c.stale?' <span class="badge bad">stale</span>':''))}
+      ${row('Source', esc(c.source))}
+      ${row('Tags', c.tags.map(t=>`<span class="badge">${esc(t)}</span>`).join(' ')||'-')}
+      ${c.not && c.not.length ? row('Does NOT cover', c.not.map(esc).join('; ')) : ''}
+      ${row('Links to', c.links.map(linkBtn).join(', ')||'-')}
+      ${row('Linked from', c.backlinks.map(linkBtn).join(', ')||'-')}
+    </table>
+    ${c.path.startsWith('uploads/')||c.path.startsWith('corpus/') ? '' : `<div class="vform"><input id="vby" placeholder="Reviewer name (a real person who checked this)"><button class="btn ghost" id="vbtn">Record human verification</button></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Writes <code>verified: [{by: human:&lt;name&gt;}]</code> and <code>status: stable</code> into the file. Only do this after an actual review.</div>`}
+    <details style="margin-top:14px"><summary>Frontmatter (raw)</summary><pre class="raw">${esc(JSON.stringify(c.meta,null,2))}</pre></details>
+    <div class="cbody" style="margin-top:8px">${mdLite(c.body)}</div>`;
+  const vb = $('#vbtn'); if (vb) vb.onclick = async () => { const by=$('#vby').value.trim(); if(!by){toast('Enter the reviewer name');return}
+    try { await api('/api/okf/verify',{path:c.path,by}); toast('Recorded human verification by '+by); renderStatus(await api('/api/status')); await loadKnowledge(c.path); } catch(e){ toast(e.message) } };
+}
+document.addEventListener('click', e => {
+  const cn = e.target.closest('[data-concept]'); if (cn) { e.preventDefault(); selectConcept(cn.dataset.concept, true); return; }
+  const ak = e.target.closest('[data-ask]'); if (ak) { $$('.tabs [data-v=chat]')[0].click(); ask('What is ' + ak.dataset.ask + '?'); }
+});
+
+/* ---------- boot ---------- */
+(async () => { showHero(); bindExamples($('#chat'), ask); try { renderStatus(await api('/api/status')); } catch(e){ toast('Server error: '+e.message) } })();
+</script>
+</body>
+</html>
